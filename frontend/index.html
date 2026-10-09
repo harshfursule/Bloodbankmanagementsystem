@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifePulse | Real-Time Location & Nearby Hospital Map</title>
+    <meta name="description" content="Next-generation blood bank platform with real-time GPS location tracking, Leaflet.js nearby hospital map, and emergency dispatch.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff001a">
+    
+    <!-- Leaflet.js OpenStreetMap Library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- PUBLIC VISITOR LAYOUT -->
+    <div id="publicLayout" class="public-layout">
+        <nav class="public-nav">
+            <div class="container nav-flex">
+                <a href="#" class="brand-logo" onclick="showPublicSection('hero')">
+                    <i class="fas fa-heartbeat pulse-icon"></i> 
+                    <span>Life<strong class="text-gradient">Pulse</strong></span>
+                </a>
+                <div class="nav-right">
+                    <button class="btn btn-ghost" onclick="showPublicSection('hospitals')">
+                        <i class="fas fa-hospital-symbol text-accent"></i> Nearby Emergency Map
+                    </button>
+                    <button class="btn btn-ghost" onclick="showPublicSection('request-blood')">
+                        <i class="fas fa-ambulance text-primary"></i> Request Blood
+                    </button>
+                    <button class="btn btn-primary" onclick="showPublicSection('auth')">
+                        <i class="fas fa-sign-in-alt"></i> Sign In / Join
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="public-main">
+            <!-- Public Hero -->
+            <section id="public-hero" class="public-section active">
+                <div class="container hero-grid">
+                    <div class="hero-intro">
+                        <div class="hero-tag"><i class="fas fa-bolt"></i> Real-time Emergency Dispatch</div>
+                        <h1>Every Drop Saves <br><span class="text-gradient">Human Lives.</span></h1>
+                        <p class="hero-desc">Find nearby emergency hospitals with real-time GPS location tracking, Leaflet.js interactive maps, and urgent blood dispatch.</p>
+                        <div class="hero-cta-group">
+                            <button class="btn btn-primary btn-lg" onclick="showPublicSection('hospitals')">
+                                <i class="fas fa-map-marked-alt"></i> Open Real-Time Hospital Map
+                            </button>
+                            <button class="btn btn-outline btn-lg" onclick="showPublicSection('request-blood')">
+                                <i class="fas fa-plus-circle"></i> Submit Urgent Request
+                            </button>
+                        </div>
+                    </div>
+                    <div class="hero-inventory-card glass-panel">
+                        <div class="card-header-flex">
+                            <h3><i class="fas fa-cubes text-accent"></i> Stock Availability</h3>
+                            <span class="live-indicator"><span class="dot"></span> Live System Data</span>
+                        </div>
+                        <div id="publicInventoryGauges" class="gauges-grid">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Public Nearby Hospitals & Donors Finder -->
+            <section id="public-hospitals" class="public-section hidden">
+                <div class="container">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+                        <button class="btn btn-sm btn-outline" onclick="showPublicSection('hero')">
+                            <i class="fas fa-arrow-left"></i> Back to Home
+                        </button>
+                        <div class="form-title text-center" style="margin-bottom:0;">
+                            <h2><i class="fas fa-map-marker-alt text-primary"></i> Real-Time Location & Nearby Emergency Map</h2>
+                            <p>Real-time browser GPS tracking with Leaflet.js hospital distance calculation</p>
+                        </div>
+                        <div style="width:120px;"></div>
+                    </div>
+
+                    <!-- GPS Live Bar & Search Filter -->
+                    <div class="search-filter-box glass-panel">
+                        <div class="gps-status-header">
+                            <div class="gps-badge" id="pubGpsBadge">
+                                <i class="fas fa-satellite text-accent"></i> <span id="pubGpsStatusText">GPS Idle (Click button to get real-time location)</span>
+                            </div>
+                            <button class="btn btn-accent btn-sm" onclick="acquireRealTimeGPS('pub')">
+                                <i class="fas fa-location-arrow"></i> Acquire Real-Time GPS
+                            </button>
+                        </div>
+
+                        <div class="form-row" style="margin-top:1rem;">
+                            <div class="form-group mb-0">
+                                <label><i class="fas fa-search-location text-accent"></i> Search Location / Zone</label>
+                                <input type="text" id="pubHospitalLocInput" placeholder="e.g. Downtown, North District..." onkeyup="filterPublicHospitalsAndDonors()">
+                            </div>
+                            <div class="form-group mb-0">
+                                <label><i class="fas fa-tint text-primary"></i> Blood Group Needed</label>
+                                <select id="pubHospitalBloodSelect" onchange="filterPublicHospitalsAndDonors()">
+                                    <option value="">All Blood Groups</option>
+                                    <option value="A+">A+</option><option value="A-">A-</option>
+                                    <option value="B+">B+</option><option value="B-">B-</option>
+                                    <option value="O+">O+</option><option value="O-">O-</option>
+                                    <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Location Quick Zone Pills -->
+                        <div class="location-pills-bar">
+                            <span class="pills-label"><i class="fas fa-compass"></i> Popular Zones:</span>
+                            <button class="loc-pill" onclick="setLocationFilter('pubHospitalLocInput', 'Downtown', filterPublicHospitalsAndDonors)">Downtown</button>
+                            <button class="loc-pill" onclick="setLocationFilter('pubHospitalLocInput', 'North District', filterPublicHospitalsAndDonors)">North District</button>
+                            <button class="loc-pill" onclick="setLocationFilter('pubHospitalLocInput', 'Central Zone', filterPublicHospitalsAndDonors)">Central Zone</button>
+                            <button class="loc-pill" onclick="setLocationFilter('pubHospitalLocInput', 'East Suburb', filterPublicHospitalsAndDonors)">East Suburb</button>
+                            <button class="loc-pill" onclick="setLocationFilter('pubHospitalLocInput', 'South Zone', filterPublicHospitalsAndDonors)">South Zone</button>
+                            <button class="loc-pill loc-pill-reset" onclick="setLocationFilter('pubHospitalLocInput', '', filterPublicHospitalsAndDonors)">Show All</button>
+                        </div>
+                    </div>
+
+                    <!-- Leaflet.js Interactive Real-Time Map -->
+                    <div class="section-subtitle">
+                        <h3><i class="fas fa-map text-accent"></i> Interactive Real-Time Hospitals Map</h3>
+                    </div>
+                    <div id="pubHospitalsMap" class="leaflet-map-box glass-panel"></div>
+
+                    <br><br>
+
+                    <!-- Partner Hospitals Cards Grid -->
+                    <div class="section-subtitle">
+                        <h3><i class="fas fa-hospital text-accent"></i> Nearby Partner Hospitals & Trauma Centers</h3>
+                    </div>
+                    <div id="pubHospitalsGrid" class="hospitals-grid">
+                        <!-- Populated via JS -->
+                    </div>
+
+                    <br><br>
+
+                    <!-- Location Matched Emergency Donors Table -->
+                    <div class="section-subtitle">
+                        <h3><i class="fas fa-user-nurse text-primary"></i> Emergency Donors Directory in Selected Location</h3>
+                    </div>
+                    <div class="glass-panel">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Donor Name</th>
+                                        <th>Blood Group</th>
+                                        <th>Location / Address</th>
+                                        <th>Emergency Phone</th>
+                                        <th>Last Donation</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pubEmergencyDonorsTableBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Public Auth (Login / Register) -->
+            <section id="public-auth" class="public-section hidden">
+                <div class="container auth-wrapper">
+                    <div class="auth-box glass-panel">
+                        <button class="back-to-home-btn" onclick="showPublicSection('hero')">
+                            <i class="fas fa-arrow-left"></i> Back to Home
+                        </button>
+                        <div class="auth-tabs">
+                            <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">
+                                <i class="fas fa-lock"></i> Login
+                            </button>
+                            <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">
+                                <i class="fas fa-user-plus"></i> Register
+                            </button>
+                        </div>
+
+                        <!-- Login Form -->
+                        <form id="loginForm" class="auth-form">
+                            <div class="form-title">
+                                <h2>Welcome Back</h2>
+                                <p>Sign in to access your LifePulse dashboard</p>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-user"></i> Username</label>
+                                <input type="text" id="loginUser" placeholder="e.g. admin" required autocomplete="username">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-key"></i> Password</label>
+                                <input type="password" id="loginPass" placeholder="••••••••" required autocomplete="current-password">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block btn-lg">
+                                <i class="fas fa-arrow-right"></i> Log In to Portal
+                            </button>
+                            <div class="demo-credentials-box">
+                                <small><i class="fas fa-shield-alt"></i> Default Admin Credentials: <strong>admin</strong> / <strong>admin123</strong></small>
+                            </div>
+                        </form>
+
+                        <!-- Register Form -->
+                        <form id="registerForm" class="auth-form hidden">
+                            <div class="form-title">
+                                <h2>Join as a Donor</h2>
+                                <p>Register to start saving lives in your community</p>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-id-card"></i> Full Name</label>
+                                <input type="text" id="regName" placeholder="Jane Doe" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-tint text-primary"></i> Blood Group</label>
+                                    <select id="regBlood" required>
+                                        <option value="A+">A+</option><option value="A-">A-</option>
+                                        <option value="B+">B+</option><option value="B-">B-</option>
+                                        <option value="O+">O+</option><option value="O-">O-</option>
+                                        <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-phone"></i> Phone</label>
+                                    <input type="tel" id="regPhone" placeholder="+1 555 0192" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-map-marker-alt"></i> Location / City Zone</label>
+                                <input type="text" id="regAddress" placeholder="Downtown, North District..." required>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-user-tag"></i> Desired Username</label>
+                                <input type="text" id="regUser" placeholder="janedoe" required autocomplete="username">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-key"></i> Choose Password</label>
+                                <input type="password" id="regPass" placeholder="••••••••" required autocomplete="new-password">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block btn-lg">
+                                <i class="fas fa-check"></i> Register Account
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Public Request Blood Form -->
+            <section id="public-request-blood" class="public-section hidden">
+                <div class="container request-wrapper">
+                    <div class="request-box glass-panel">
+                        <button class="back-to-home-btn" onclick="showPublicSection('hero')">
+                            <i class="fas fa-arrow-left"></i> Back to Home
+                        </button>
+                        <div class="form-title text-center">
+                            <h2><i class="fas fa-ambulance text-primary"></i> Patient Blood Request</h2>
+                            <p>Submit urgent blood requirements for fast processing</p>
+                        </div>
+                        <form id="publicBloodRequestForm">
+                            <div class="form-group">
+                                <label>Patient Full Name</label>
+                                <input type="text" id="pubReqPatient" placeholder="Enter patient name" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Blood Group Needed</label>
+                                    <select id="pubReqBloodGroup" required>
+                                        <option value="A+">A+</option><option value="A-">A-</option>
+                                        <option value="B+">B+</option><option value="B-">B-</option>
+                                        <option value="O+">O+</option><option value="O-">O-</option>
+                                        <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Required Units</label>
+                                    <input type="number" id="pubReqUnits" min="1" max="10" value="1" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority Level</label>
+                                <div class="priority-selector">
+                                    <label class="priority-opt">
+                                        <input type="radio" name="pubPriority" value="Normal" checked>
+                                        <span><i class="fas fa-check-circle"></i> Normal</span>
+                                    </label>
+                                    <label class="priority-opt priority-emergency">
+                                        <input type="radio" name="pubPriority" value="Emergency">
+                                        <span><i class="fas fa-exclamation-triangle"></i> Emergency Dispatch</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:0.8rem; margin-top:1.2rem;">
+                                <button type="button" class="btn btn-outline" style="flex:1;" onclick="showPublicSection('hero')">
+                                    <i class="fas fa-arrow-left"></i> Home
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-lg" style="flex:2;">
+                                    <i class="fas fa-paper-plane"></i> Submit Blood Request
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- LOGGED-IN APP SHELL LAYOUT (Sidebar persistent navigation) -->
+    <div id="appShell" class="app-shell hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-brand">
+                <i class="fas fa-heartbeat pulse-icon"></i>
+                <span class="brand-name">Life<strong>Pulse</strong></span>
+                <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close sidebar"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- User Snippet -->
+            <div class="user-snippet">
+                <div class="user-avatar" id="appUserAvatar">A</div>
+                <div class="user-meta">
+                    <h4 id="appUserName">User Name</h4>
+                    <span class="role-badge" id="appUserRole">Admin</span>
+                </div>
+            </div>
+
+            <!-- Sidebar Nav Links -->
+            <nav class="sidebar-nav">
+                <ul class="sidebar-menu">
+                    <li class="menu-item">
+                        <a href="#" class="menu-link active" id="nav-dashboard" onclick="switchAppPanel('dashboard')">
+                            <i class="fas fa-chart-line"></i> <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="#" class="menu-link" id="nav-hospitals" onclick="switchAppPanel('hospitals')">
+                            <i class="fas fa-hospital-symbol text-accent"></i> <span>Nearby Hospitals Map</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="#" class="menu-link" id="nav-inventory" onclick="switchAppPanel('inventory')">
+                            <i class="fas fa-boxes"></i> <span>Stock Inventory</span>
+                        </a>
+                    </li>
+                    <li class="menu-item staff-or-admin">
+                        <a href="#" class="menu-link" id="nav-requests" onclick="switchAppPanel('requests')">
+                            <i class="fas fa-tasks"></i> <span>Request Queue</span>
+                        </a>
+                    </li>
+                    <li class="menu-item admin-only">
+                        <a href="#" class="menu-link" id="nav-donors" onclick="switchAppPanel('donors')">
+                            <i class="fas fa-users-cog"></i> <span>Donor Registry</span>
+                        </a>
+                    </li>
+                    <li class="menu-item donor-only">
+                        <a href="#" class="menu-link" id="nav-matching-requests" onclick="switchAppPanel('matching-requests')">
+                            <i class="fas fa-hands-helping"></i> <span>Urgent Requests Feed</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="btn btn-outline-danger btn-block" id="appLogoutBtn" onclick="logout()" title="Logout of session">
+                    <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <div class="app-main-wrapper">
+            <!-- App Header -->
+            <header class="app-header">
+                <div class="header-left">
+                    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle sidebar">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title-box">
+                        <h2 id="currentPanelTitle">Dashboard</h2>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="system-time" id="systemTimeDisplay">--:--:--</div>
+                    <div class="user-pill">
+                        <i class="fas fa-circle text-success" style="font-size: 0.6rem;"></i>
+                        <span id="headerUserGroup">Stock Health: Good</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Workspace Content Panels -->
+            <main class="app-workspace">
+                
+                <!-- Panel 1: Main Overview Dashboard -->
+                <section id="panel-dashboard" class="workspace-panel active">
+                    <!-- KPI Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon-box icon-donors"><i class="fas fa-users"></i></div>
+                            <div class="stat-info">
+                                <h3 id="dashTotalDonors">--</h3>
+                                <p>Total Registered Donors</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon-box icon-units"><i class="fas fa-tint"></i></div>
+                            <div class="stat-info">
+                                <h3 id="dashTotalUnits">--</h3>
+                                <p>Stock Units Available</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon-box icon-pending"><i class="fas fa-clock"></i></div>
+                            <div class="stat-info">
+                                <h3 id="dashPendingRequests">--</h3>
+                                <p>Pending Urgent Requests</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon-box icon-approved"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-info">
+                                <h3 id="dashApprovedRequests">--</h3>
+                                <p>Total Dispatches</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Health Progress Bars -->
+                    <div class="dashboard-section glass-panel">
+                        <div class="panel-header-flex">
+                            <div>
+                                <h3><i class="fas fa-chart-bar text-accent"></i> Inventory Health Status</h3>
+                                <p class="text-dim">Blood bank storage capacity per blood group</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline staff-or-admin" onclick="openAdjustStockModal()">
+                                <i class="fas fa-sliders-h"></i> Manage Inventory Stock
+                            </button>
+                        </div>
+                        <div id="dashInventoryHealthGauges" class="health-gauges-grid">
+                            <!-- Visual progress bars injected via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Action Banner -->
+                    <div class="action-banner glass-panel">
+                        <div class="banner-content">
+                            <h3 id="bannerTitle">Quick Actions</h3>
+                            <p id="bannerDesc">Select an action to perform system operations</p>
+                        </div>
+                        <div class="banner-btns" id="bannerBtnGroup">
+                            <!-- Injected dynamically via JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Panel: Nearby Hospitals & Donors Workspace -->
+                <section id="panel-hospitals" class="workspace-panel hidden">
+                    <div class="glass-panel" style="padding: 2rem; margin-bottom: 2rem;">
+                        <div class="gps-status-header">
+                            <div class="gps-badge" id="appGpsBadge">
+                                <i class="fas fa-satellite text-accent"></i> <span id="appGpsStatusText">GPS Idle (Click button to get real-time location)</span>
+                            </div>
+                            <button class="btn btn-accent btn-sm" onclick="acquireRealTimeGPS('app')">
+                                <i class="fas fa-location-arrow"></i> Acquire Real-Time GPS
+                            </button>
+                        </div>
+
+                        <div class="panel-header-flex" style="margin-top:1.2rem;">
+                            <div>
+                                <h3><i class="fas fa-hospital text-accent"></i> Nearby Emergency Hospitals & Contact Directory</h3>
+                                <p class="text-dim">Filter trauma centers & emergency hotlines by location</p>
+                            </div>
+                            <input type="text" id="appHospitalLocInput" class="table-search" placeholder="Search zone..." onkeyup="filterAppHospitals()">
+                        </div>
+
+                        <!-- Workspace Zone Quick Pills -->
+                        <div class="location-pills-bar">
+                            <span class="pills-label"><i class="fas fa-compass"></i> Popular Zones:</span>
+                            <button class="loc-pill" onclick="setLocationFilter('appHospitalLocInput', 'Downtown', filterAppHospitals)">Downtown</button>
+                            <button class="loc-pill" onclick="setLocationFilter('appHospitalLocInput', 'North District', filterAppHospitals)">North District</button>
+                            <button class="loc-pill" onclick="setLocationFilter('appHospitalLocInput', 'Central Zone', filterAppHospitals)">Central Zone</button>
+                            <button class="loc-pill" onclick="setLocationFilter('appHospitalLocInput', 'East Suburb', filterAppHospitals)">East Suburb</button>
+                            <button class="loc-pill" onclick="setLocationFilter('appHospitalLocInput', 'South Zone', filterAppHospitals)">South Zone</button>
+                            <button class="loc-pill loc-pill-reset" onclick="setLocationFilter('appHospitalLocInput', '', filterAppHospitals)">Show All</button>
+                        </div>
+
+                        <!-- Leaflet.js Interactive Real-Time Map -->
+                        <div id="appHospitalsMap" class="leaflet-map-box glass-panel" style="margin-top:1.5rem;"></div>
+
+                        <div id="appHospitalsGrid" class="hospitals-grid" style="margin-top:1.5rem;">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <div class="glass-panel" style="padding: 2rem;">
+                        <div class="panel-header-flex">
+                            <div>
+                                <h3><i class="fas fa-phone-alt text-primary"></i> Location-Matched Emergency Donors Contact Directory</h3>
+                                <p class="text-dim">Direct contact details for registered blood donors in nearby locations</p>
+                            </div>
+                            <div style="display:flex; gap:1rem;">
+                                <input type="text" id="appEmergencyDonorLocInput" class="table-search" placeholder="Search location..." onkeyup="filterAppEmergencyDonors()">
+                                <select id="appEmergencyDonorGroupSelect" style="max-width:180px; height:38px;" onchange="filterAppEmergencyDonors()">
+                                    <option value="">All Groups</option>
+                                    <option value="A+">A+</option><option value="A-">A-</option>
+                                    <option value="B+">B+</option><option value="B-">B-</option>
+                                    <option value="O+">O+</option><option value="O-">O-</option>
+                                    <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Donor Name</th>
+                                        <th>Blood Group</th>
+                                        <th>Location / Address</th>
+                                        <th>Direct Phone</th>
+                                        <th>Last Donation</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="appEmergencyDonorsTableBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Panel 2: Inventory Detail & Management -->
+                <section id="panel-inventory" class="workspace-panel hidden">
+                    <div class="glass-panel">
+                        <div class="panel-header-flex">
+                            <h3><i class="fas fa-boxes text-accent"></i> Blood Stock Inventory</h3>
+                            <button class="btn btn-primary staff-or-admin" onclick="openAdjustStockModal()">
+                                <i class="fas fa-edit"></i> Adjust Inventory Levels
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Blood Group</th>
+                                        <th>Available Stock</th>
+                                        <th>Health Capacity</th>
+                                        <th>Last Updated</th>
+                                        <th class="staff-or-admin">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventoryTableBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Panel 3: Request Queue -->
+                <section id="panel-requests" class="workspace-panel hidden">
+                    <div class="glass-panel">
+                        <div class="panel-header-flex">
+                            <div>
+                                <h3><i class="fas fa-tasks text-accent"></i> Patient Request Queue</h3>
+                                <p class="text-dim">Process pending emergency & regular blood requests</p>
+                            </div>
+                            <input type="text" id="requestSearchInput" class="table-search" placeholder="Search requests..." onkeyup="filterRequestsTable()">
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Patient Name</th>
+                                        <th>Blood Group</th>
+                                        <th>Units</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                        <th class="staff-or-admin">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="requestQueueTableBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Panel 4: Donor Registry (Admin Only) -->
+                <section id="panel-donors" class="workspace-panel hidden">
+                    <div class="glass-panel">
+                        <div class="panel-header-flex">
+                            <div>
+                                <h3><i class="fas fa-users-cog text-accent"></i> Donor Directory</h3>
+                                <p class="text-dim">Registered blood donors database</p>
+                            </div>
+                            <input type="text" id="donorSearchInput" class="table-search" placeholder="Search donors..." onkeyup="filterDonorsTable()">
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Blood Group</th>
+                                        <th>Contact Phone</th>
+                                        <th>Address / Location</th>
+                                        <th>Last Donation Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="donorRegistryTableBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Panel 5: Matching Requests Feed for Donors -->
+                <section id="panel-matching-requests" class="workspace-panel hidden">
+                    <div class="glass-panel">
+                        <div class="panel-header-flex">
+                            <div>
+                                <h3><i class="fas fa-hands-helping text-accent"></i> Urgent Matching Requests Feed</h3>
+                                <p class="text-dim">Patients currently requesting your blood group</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="openDonationModal()">
+                                <i class="fas fa-plus"></i> Record Blood Donation
+                            </button>
+                        </div>
+                        <div id="matchingRequestsFeed" class="matching-feed-grid">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL DIALOGS -->
+
+    <!-- Modal 1: Log Donation -->
+    <div id="donationModal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3><i class="fas fa-hand-holding-water text-primary"></i> Log Blood Donation</h3>
+                <button class="modal-close-btn" onclick="closeDonationModal()">&times;</button>
+            </div>
+            <form id="appDonationForm">
+                <div class="form-group">
+                    <label>Units Donated</label>
+                    <input type="number" id="donationUnitsInput" min="1" max="5" value="1" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeDonationModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Donation Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Adjust Inventory Stock (Staff/Admin) -->
+    <div id="adjustStockModal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3><i class="fas fa-sliders-h text-accent"></i> Adjust Inventory Stock</h3>
+                <button class="modal-close-btn" onclick="closeAdjustStockModal()">&times;</button>
+            </div>
+            <form id="adjustStockForm">
+                <div class="form-group">
+                    <label>Blood Group</label>
+                    <select id="adjustBloodGroup" required>
+                        <option value="A+">A+</option><option value="A-">A-</option>
+                        <option value="B+">B+</option><option value="B-">B-</option>
+                        <option value="O+">O+</option><option value="O-">O-</option>
+                        <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Set Stock Units Count</label>
+                    <input type="number" id="adjustUnitsCount" min="0" max="200" value="10" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeAdjustStockModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Stock Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: System Audit Report -->
+    <div id="reportModal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-invoice text-accent"></i> LifePulse System Audit Report</h3>
+                <button class="modal-close-btn" onclick="closeReportModal()">&times;</button>
+            </div>
+            <div id="reportModalBody" class="report-body">
+                <!-- Injected dynamically via JS -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeReportModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()"><i class="fas fa-print"></i> Print Audit Log</button>
+            </div>
+        </div>
+    <!-- Modal 4: Emergency Dispatch & Real-Time SMS Alert Center -->
+    <div id="dispatchModal" class="modal-overlay hidden">
+        <div class="modal-box glass-panel modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-satellite-dish text-primary"></i> Real-Time Emergency Dispatch & SMS Center</h3>
+                <button class="modal-close-btn" onclick="closeDispatchModal()">&times;</button>
+            </div>
+            <div id="dispatchModalBody" class="report-body">
+                <!-- Injected dynamically via JS -->
+            </div>
+            <div class="modal-actions" style="margin-top:1.5rem;">
+                <button type="button" class="btn btn-outline" onclick="closeDispatchModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmDispatchBtn" onclick="confirmEmergencyDispatch()">
+                    <i class="fas fa-paper-plane"></i> Transmit Emergency Dispatch & SMS Alert
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').catch(err => console.log('ServiceWorker PWA active'));
+        });
+    }
+    </script>
+</body>
+</html>

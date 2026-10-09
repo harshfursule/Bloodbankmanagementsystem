@@ -1,0 +1,9 @@
+﻿{
+  "name": "LifePulse Blood Bank System",
+  "short_name": "LifePulse",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#ff001a",
+  "description": "Real-Time GPS Location Tracking & Nearby Hospital Emergency Dispatch System."
+}
